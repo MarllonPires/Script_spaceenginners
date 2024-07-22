@@ -1,0 +1,97 @@
+public Program()
+{
+    Runtime.UpdateFrequency = UpdateFrequency.Update100; // Atualiza a cada 100 ticks (~1.6 segundos)
+}
+
+string nomeLCDQuantidade = "Painel LCD Quantidade"; // Nome do painel LCD onde as quantidades serão exibidas
+string nomeLCDAlerta = "Painel LCD Alerta"; // Nome do painel LCD onde os alertas serão exibidos
+
+public void Main(string argument, UpdateType updateSource)
+{
+    // Obtém os inventários do grid
+    List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
+    GridTerminalSystem.GetBlocksOfType(cargoContainers);
+
+    Dictionary<string, float> itemQuantities = new Dictionary<string, float>();
+    Dictionary<string, float> itemCapacities = new Dictionary<string, float>();
+
+    // Inicializa as quantidades e capacidades
+    InitializeItemCapacities(itemCapacities);
+
+    // Coleta dados dos inventários
+    foreach (var container in cargoContainers)
+    {
+        IMyInventory inventory = container.GetInventory();
+        List<MyInventoryItem> items = new List<MyInventoryItem>();
+        inventory.GetItems(items);
+
+        foreach (var item in items)
+        {
+            string itemType = item.Type.SubtypeId;
+            float itemAmount = (float)item.Amount;
+
+            if (!itemQuantities.ContainsKey(itemType))
+            {
+                itemQuantities[itemType] = 0;
+            }
+
+            itemQuantities[itemType] += itemAmount;
+        }
+    }
+
+    // Monta a string de status das quantidades
+    string statusQuantidade = "====================\n";
+    statusQuantidade += " Quantidade de Itens\n";
+    statusQuantidade += "====================\n";
+
+    string statusAlerta = "====================\n";
+    statusAlerta += "    Alertas\n";
+    statusAlerta += "====================\n";
+
+    foreach (var kvp in itemQuantities)
+    {
+        string itemType = kvp.Key;
+        float itemAmount = kvp.Value;
+        float itemCapacity = itemCapacities.ContainsKey(itemType) ? itemCapacities[itemType] : 0;
+        float percentage = (itemCapacity > 0) ? (itemAmount / itemCapacity) * 100 : 0;
+
+        statusQuantidade += $"{itemType}: {itemAmount:F2}\n";
+
+        if (percentage <= 20)
+        {
+            statusAlerta += $"{itemType} está acabando! Nível baixo: {percentage:F2}%\n";
+        }
+    }
+
+    // Exibe as informações no painel LCD de quantidade
+    IMyTextPanel lcdQuantidade = GridTerminalSystem.GetBlockWithName(nomeLCDQuantidade) as IMyTextPanel;
+    if (lcdQuantidade != null)
+    {
+        lcdQuantidade.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+        lcdQuantidade.WriteText(statusQuantidade);
+    }
+
+    // Exibe os alertas no painel LCD de alerta
+    IMyTextPanel lcdAlerta = GridTerminalSystem.GetBlockWithName(nomeLCDAlerta) as IMyTextPanel;
+    if (lcdAlerta != null)
+    {
+        lcdAlerta.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+        lcdAlerta.WriteText(statusAlerta);
+    }
+}
+
+void InitializeItemCapacities(Dictionary<string, float> itemCapacities)
+{
+    // Inicializa a capacidade máxima para cada tipo de minério ou lingote
+    itemCapacities["Iron"] = 100000;
+    itemCapacities["Nickel"] = 50000;
+    itemCapacities["Cobalt"] = 30000;
+    itemCapacities["Magnesium"] = 20000;
+    itemCapacities["Silicon"] = 40000;
+    itemCapacities["Silver"] = 10000;
+    itemCapacities["Gold"] = 5000;
+    itemCapacities["Uranium"] = 2000;
+    itemCapacities["Platinum"] = 1000;
+    itemCapacities["Stone"] = 200000;
+    // Adicione mais itens conforme necessário
+}

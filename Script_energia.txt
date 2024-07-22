@@ -1,0 +1,116 @@
+public Program()
+{
+    Runtime.UpdateFrequency = UpdateFrequency.Update100;
+}
+
+public void Main(string argument, UpdateType updateSource)
+{
+    // Configurações
+    string nomeLCD = "Painel LCD"; // Nome do painel LCD onde as informações serão exibidas
+
+    // Coleta os blocos de baterias e produtores de energia
+    List<IMyBatteryBlock> blocosBateria = new List<IMyBatteryBlock>();
+    GridTerminalSystem.GetBlocksOfType(blocosBateria);
+
+    List<IMyPowerProducer> produtoresEnergia = new List<IMyPowerProducer>();
+    GridTerminalSystem.GetBlocksOfType(produtoresEnergia);
+
+    // Inicializa variáveis para armazenar dados de energia
+    float energiaArmazenadaAtual = 0;
+    float capacidadeMaxima = 0;
+    float entradaAtual = 0;
+    float saidaAtual = 0;
+
+    // Coleta dados das baterias
+    foreach (var bateria in blocosBateria)
+    {
+        energiaArmazenadaAtual += (float)bateria.CurrentStoredPower;
+        capacidadeMaxima += (float)bateria.MaxStoredPower;
+        entradaAtual += (float)bateria.CurrentInput;
+        saidaAtual += (float)bateria.CurrentOutput;
+    }
+
+    // Coleta dados dos produtores de energia
+    foreach (var produtor in produtoresEnergia)
+    {
+        entradaAtual += (float)produtor.CurrentOutput;
+    }
+
+    // Calcula a porcentagem de energia armazenada
+    float porcentagemEnergiaArmazenada = (capacidadeMaxima > 0) ? (energiaArmazenadaAtual / capacidadeMaxima) * 100 : 0;
+
+    // Calcula o tempo estimado para descarregar as baterias
+    double tempoEstimadoHoras = (saidaAtual > 0) ? energiaArmazenadaAtual / saidaAtual : 0;
+    TimeSpan tempoEstimado = TimeSpan.FromHours(tempoEstimadoHoras);
+
+    // Monta a string de status da energia com formatação de dashboard
+    string status = "====================\n";
+    status += "     Painel de Energia\n";
+    status += "====================\n";
+    status += $"Energia Armazenada : {energiaArmazenadaAtual:F2} MWh\n";
+    status += $"Capacidade Máxima  : {capacidadeMaxima:F2} MWh\n";
+    status += $"Porcentagem de Energia : {porcentagemEnergiaArmazenada:F2}%\n";
+    status += "--------------------\n";
+    status += $"Entrada Atual     : {entradaAtual:F2} MW\n";
+    status += $"Saída Atual       : {saidaAtual:F2} MW\n";
+    status += $"Tempo p/ Descarregar: {tempoEstimado:hh\\:mm\\:ss}\n";
+    status += "====================\n";
+    status += $"Atualizado em: {DateTime.Now:HH:mm:ss}\n";
+
+    // Adiciona uma barra de progresso à string de status
+    string barraProgresso = "";
+    int progressWidth = 20; // Largura da barra de progresso
+    int progressFilled = (int)(porcentagemEnergiaArmazenada / (100 / progressWidth)); // Calcula a proporção com base na largura da barra
+
+    for (int i = 0; i < progressWidth; i++)
+    {
+        if (i < progressFilled)
+        {
+            barraProgresso += "#"; // Caractere para a parte preenchida da barra de progresso
+        }
+        else
+        {
+            barraProgresso += "-"; // Caractere para a parte vazia da barra de progresso
+        }
+    }
+    status += $"[{barraProgresso}] {porcentagemEnergiaArmazenada:F2}%\n";
+
+    // Exibe as informações no painel LCD
+    IMyTextPanel lcd = GridTerminalSystem.GetBlockWithName(nomeLCD) as IMyTextPanel;
+    if (lcd != null)
+    {
+        lcd.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+
+        // Calcula o tamanho da fonte com base na quantidade de linhas
+        float fontSize = CalculateFontSize(status, lcd);
+        lcd.FontSize = fontSize;
+
+        lcd.WriteText(status);
+    }
+}
+
+// Função para calcular o tamanho da fonte com base no conteúdo e tamanho do painel
+public float CalculateFontSize(string text, IMyTextPanel lcd)
+{
+    float defaultFontSize = 1.0f;
+    int defaultCharPerLine = 20; // Ajuste conforme necessário
+    int defaultLines = 10; // Ajuste conforme necessário
+
+    // Calcula a quantidade de linhas e a largura média das linhas
+    string[] lines = text.Split('\n');
+    int maxLineLength = 0;
+    foreach (string line in lines)
+    {
+        if (line.Length > maxLineLength)
+        {
+            maxLineLength = line.Length;
+        }
+    }
+
+    // Calcula o fator de escala para ajustar o tamanho da fonte
+    float scaleFactorWidth = (float)defaultCharPerLine / maxLineLength;
+    float scaleFactorHeight = (float)defaultLines / lines.Length;
+
+    // Retorna o menor fator para garantir que o texto caiba no painel
+    return defaultFontSize * Math.Min(scaleFactorWidth, scaleFactorHeight);
+}
